@@ -153,7 +153,7 @@ basic_coxph_cv <- function(ddd,  #data
 basic_coxph_cv(ddd)
 
 #########################
-Impute BMI and check how prediction performance changes 
+#Impute BMI and check how prediction performance changes 
 
 library(missForest)
 mf <- missForest::missForest(ddd)
@@ -174,7 +174,7 @@ create_mcar<- function(p, frq=0.1){  # 10% missing data to create
     n <- length(p)
     rows_to_delete = sample(1:n, round(frq*n,0))  #select 10% rows at random 
     p[rows_to_delete] = NA
-return (p)
+return (p)}
 
 ddd_missing$hyp_0 = create_mcar(ddd_missing$hyp_0)
 
@@ -186,3 +186,33 @@ ddd_missing$hyp_0 = create_mcar(ddd_missing$hyp_0)
 
 # try different ways to impute  (mean, missForest, MICE, ... )
 # validate how the prediction performance changes 
+
+
+#create missingness in any variable
+default_pattern_any = c(rep(0,10))
+
+# missing in the last 5 variables only
+default_pattern_1 = c(rep(1,5), rep(0,5))
+
+# overall number of variables
+nall = dim(df_train_cv[params])[1]*length(params)
+
+{set.seed(123)
+  p = 0.3 # percent missing
+  missmech = "MNAR" #missingness mechanism
+  amp_train <-
+    mice::ampute(df_train_cv[params],
+                 prop = p,
+                 pattern = default_pattern_any,
+                 mech = missmech)$amp
+  amp_test <-
+    mice::ampute(df_test_cv[params],
+                 prop = p,
+                 pattern = default_pattern_any,
+                 mech = missmech)$amp
+}
+#overall missingness
+sum(is.na(amp_train))/nall #0.3003
+
+# percent of missing data by column
+apply(apply(amp_train, 2, is.na), 2, sum) / dim(df_train_cv[params])[1]
