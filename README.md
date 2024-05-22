@@ -1,4 +1,4 @@
-# Missing data in healthcare
+# Prediction of the survival outcomes in the presence of missing data. Which combinations of imputation and prediction algorithms work best?  
 
 ##### Keywords: prediction modelling, missing data imputation, survival analysis, machine learning
 
