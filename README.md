@@ -1,4 +1,5 @@
-# Prediction of the survival outcomes in the presence of missing data. Which combinations of imputation and prediction algorithms work best?  
+# Prediction of time-to-event outcomes in the presence of missing data. 
+## Which combinations of imputation and prediction algorithms work best?  
 
 ##### Keywords: prediction modelling, missing data imputation, survival analysis, machine learning
 
