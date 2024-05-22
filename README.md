@@ -46,6 +46,7 @@ Given that missing data is one of the key issues in clinical research, in this p
     6. Predict for the test data using the tuned model and compute the performance metrics;
     7. Repeate the steps iii - vi alternating the testing fold (k times);
     8. Average the performance metrics across the folds.
+    9. Repeate the steps i-viii for all combinations of the missingness mechanisms and percentage of missing data.
 
 * Performance metrics:
      * Condordance index (Harrel's c-index for survival outcomes);
