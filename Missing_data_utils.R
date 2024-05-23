@@ -43,8 +43,8 @@ impute_cc <- function(df, params, randomseed = NULL) {
   return(output)
 }
 
-d2<- impute_mice(diabetes, params)$df
-mv(d2[params])
+# d2<- impute_mice(diabetes, params)$df
+# mv(d2[params])
 
 impute_mice <- function(df, params, randomseed = NULL) {
   if (is.null(randomseed)) {randomseed = sample(1:1e9,1)}
@@ -211,9 +211,9 @@ table(diabetes$baseline_wealth_n, d1_missForest$baseline_wealth_n)
 
 table(diabetes$baseline_wealth_n, d1_mice$baseline_wealth_n)
 #     0    1    2
-# 0 1204  173  238
-# 1  100 1442  237
-# 2  133  192 1628
+# 0 1274  169  172
+# 1  139 1442  198
+# 2  182  206 1565
 
 cv_number = 5 
 
@@ -223,7 +223,8 @@ df_test_cv  = d1[cv_folds == 1,]
 
 df_train_0 <- impute_cc(df_train_cv, params_impute)$df
 df_test_0 <-  impute_cc(df_test_cv, params_impute)$df
-dim(df_train_0)
+dim(df_train_0) #2987 29
+dim(df_test_0)  #742 29
 
 df_train_1 <- impute_mean(df_train_cv, params_impute)$df
 df_test_1 <-  impute_mean_test(df_train_cv, df_test_cv, params_impute)$df
@@ -234,23 +235,35 @@ df_test_2 <-  d1_mice[cv_folds==1, ]
 df_train_3 <- impute_missforest(df_train_cv, params_impute)$df
 df_test_3 <-  d1_missForest[cv_folds==1, ]
 
-getcindex<- function(df_train_x, df_test_x){
-  mcox <- survcompare::survcox_train(df_train_x,params)
-  mcoxlasso <- glmnet::cv.glmnet(x = as.matrix(df_train_x[, params]), 
-                                 y= Surv(df_train_x$time,df_train_x$event),
-                                 family = "cox")
+getcindex <- function(df_train_x, df_test_x) {
+  mcox <- survcompare::survcox_train(df_train_x, params)
+  mcoxlasso <- glmnet::cv.glmnet(
+    x = as.matrix(df_train_x[, params]),
+    y = Surv(df_train_x$time, df_train_x$event),
+    family = "cox"
+  )
+  msrf<- survcompare::survsrf_train(df_train_x, params)
+  
   pcox0 <- predict(mcox, df_test_x[params], type = "lp")
-  plasso0 <- predict(mcoxlasso, as.matrix(df_test_x[params]), lambda = lambda.min, type = "link")
-  y_test = Surv(df_test_x$time,df_test_x$event)
-  c0_cox <- concordancefit( y=y_test, x = 1-pcox0)$concordance
-  c0_lasso <- concordancefit( y= y_test, x = 1-plasso0)$concordance
-  return(c(c0_cox,c0_lasso))
+  plasso0 <-
+    predict(mcoxlasso,as.matrix(df_test_x[params]),
+            lambda = lambda.min,type = "link")
+  psrf0 <- survcompare::survsrf_predict(msrf, df_test_x, fixed_time = 10)
+  
+  y_test = Surv(df_test_x$time, df_test_x$event)
+  c0_cox <- concordancefit(y = y_test, x = 1 - pcox0)$concordance
+  c0_lasso <- concordancefit(y = y_test, x = 1 - plasso0)$concordance
+  c0_srf <- concordancefit(y = y_test, x = 1- psrf0)$concordance
+  remove(mcox, mcoxlasso, msrf)
+  return(c(c0_cox, c0_lasso, c0_srf))
 }
 
 #  CC 
-cind_0<- getcindex(df_train_0, df_test_0) # 80 79
+cind_0<- getcindex(df_train_0, df_test_0) # 87 85 86
 cind_1<- getcindex(df_train_1, df_test_1) # 73 71 
 cind_2<- getcindex(df_train_2, df_test_2) # 72 71
 cind_3<- getcindex(df_train_3, df_test_3) # 70 72
+r<- rbind(cind_0, cind_1, cind_2, cind_3)
+names(r)<- c("CoxPH", "CoxLasso", "SRF")
 
 
