@@ -29,12 +29,12 @@ impute_cc <- function(df, params, randomseed = NULL) {
   params_cc <- params
   # exclude missing data > 50%
   for (c in params) {
-    if (md[c] > 0.5) {
-      params_cc = params_cc[params_cc != c]
-    } else{
+    # if (md[c] > 0.51) {
+      # params_cc = params_cc[params_cc != c]
+    # } else{
       # if <50% missing, exclude row-wise
-      df <- df[!is.na(df[c]),]
-    }
+    if (c %in% names(df)){df <- df[!is.na(df[c]),]}
+    # }
   }
   output = list()
   output$df = df
@@ -69,7 +69,8 @@ impute_mice_test <- function(dftrain, dftest, params, randomseed = NULL) {
     m = 1,
     seed = randomseed,
     ignore = NULL,
-    method = "norm.nob"
+    method = "norm.nob",
+    printFlag = FALSE
   )
   dftest[params]<- complete(d3)[1:dim(dftest)[1], ]
   output=list(); output$df = dftest
@@ -78,7 +79,7 @@ impute_mice_test <- function(dftrain, dftest, params, randomseed = NULL) {
 
 impute_missforest<- function(df, params, randomseed = NULL, correctwealth= TRUE){
   if (is.null(randomseed)) {randomseed = sample(1:1e9,1)}
-  {set.seed(randomseed);  mf<- missForest::missForest(df[params])}
+  {set.seed(randomseed);  mf<- missForest::missForest(df[params],verbose = FALSE)}
   df[params] <- mf$ximp
   
   # categorise wealth back
@@ -215,55 +216,145 @@ table(diabetes$baseline_wealth_n, d1_mice$baseline_wealth_n)
 # 1  139 1442  198
 # 2  182  206 1565
 
-cv_number = 5 
-
+cv_number = 3 
 cv_folds = caret::createFolds(d1$event, k = cv_number, list = FALSE)
-df_train_cv = d1[cv_folds != 1,]
-df_test_cv  = d1[cv_folds == 1,]
 
-df_train_0 <- impute_cc(df_train_cv, params_impute)$df
-df_test_0 <-  impute_cc(df_test_cv, params_impute)$df
-dim(df_train_0) #2987 29
-dim(df_test_0)  #742 29
+one_fold_run<- function(k, cv_folds, d1, d1_mice,d1_missForest){ 
+    df_train_cv = d1[cv_folds != k,]
+    df_test_cv  = d1[cv_folds == k,]
+    
+    df_train_0 <- impute_cc(df_train_cv, params_impute)$df
+    df_test_0 <-  impute_cc(df_test_cv, params_impute)$df
+    dim(df_train_0) #2987 29
+    dim(df_test_0)  #742 29
+    
+    df_train_1 <- impute_mean(df_train_cv, params_impute)$df
+    df_test_1 <-  impute_mean_test(df_train_cv, df_test_cv, params_impute)$df
+    
+    df_train_2 <- impute_mice(df_train_cv, params_impute)$df
+    df_test_2 <-  d1_mice[cv_folds==k, ]
+    
+    df_train_3 <- impute_missforest(df_train_cv, params_impute,correctwealth = FALSE)$df
+    df_test_3 <-  d1_missForest[cv_folds==k, ]
+    
+    getcindex <- function(df_train_x, df_test_x) {
+      
+      mcox <- survcompare::survcox_train(df_train_x, params)
+      mcoxlasso <- glmnet::cv.glmnet(
+        x = as.matrix(df_train_x[, params]),
+        y = Surv(df_train_x$time, df_train_x$event),
+        family = "cox"
+      )
+      msrf<- survcompare::survsrf_train(df_train_x, params)
+      
+      pcox0 <- predict(mcox, df_test_x[params], type = "lp")
+      plasso0 <-
+        predict(mcoxlasso,as.matrix(df_test_x[params]),
+                lambda = lambda.min,type = "link")
+      psrf0 <- survcompare::survsrf_predict(msrf, df_test_x, fixed_time = 10)
+      
+      y_test = Surv(df_test_x$time, df_test_x$event)
+      c0_cox <- concordancefit(y = y_test, x = 1 - pcox0)$concordance
+      
+      c0_lasso <- concordancefit(y = y_test, x = 1 - plasso0)$concordance
+      c0_srf <- concordancefit(y = y_test, x = 1- psrf0)$concordance
+      remove(mcox, mcoxlasso, msrf)
+      
+      return(c(c0_cox, c0_lasso, c0_srf))
+    }
+    #  CC 
+    cind_0<- getcindex(df_train_0, df_test_0) # 87 85 86
+    cind_1<- getcindex(df_train_1, df_test_1) # 73 71 
+    cind_2<- getcindex(df_train_2, df_test_2) # 72 71
+    cind_3<- getcindex(df_train_3, df_test_3) # 70 72
+    r<- rbind(cind_0, cind_1, cind_2, cind_3)
+    colnames(r)<- c("CoxPH", "CoxLasso", "SRF")
+    return(r)
+} 
 
-df_train_1 <- impute_mean(df_train_cv, params_impute)$df
-df_test_1 <-  impute_mean_test(df_train_cv, df_test_cv, params_impute)$df
+one_cv_run <-
+  function(df, 
+           params_impute,
+           params,
+           p,
+           mechi,
+           pattern = NULL,
+           cv_number=3) {
+    
+    if (is.null(pattern)){ pattern = rep(0, length(params_impute))}
 
-df_train_2 <- impute_mice(df_train_cv, params_impute)$df
-df_test_2 <-  d1_mice[cv_folds==1, ]
+    d1 <- create_missing(df = df, params = params_impute,
+        mech = mechi,prop = p, pattern = pattern)
+    print(mv(d1))
+    d1_mice <- impute_mice(d1, params_impute)$df
+    d1_missForest <-
+      impute_missforest(d1, params_impute, correctwealth = FALSE)$df
+    
+    cv_folds = caret::createFolds(d1$event, k = cv_number, list = FALSE)
+    
+    results_cv <- list()
 
-df_train_3 <- impute_missforest(df_train_cv, params_impute)$df
-df_test_3 <-  d1_missForest[cv_folds==1, ]
+    for (j in (1:cv_number)) {
+      results_cv[[j]] <- one_fold_run(k=j, cv_folds, d1, d1_mice, d1_missForest)
+    }
+    
+    results_cv_means <-  results_cv[[1]]/cv_number
+    for (j in (2:cv_number)) {
+      results_cv_means <- results_cv_means + results_cv[[j]]/cv_number
+    }  
+    
+    remove(d1, d1_mice, d1_missForest)
+    return(results_cv_means)
+    #average over cv iterations 
+  } 
 
-getcindex <- function(df_train_x, df_test_x) {
-  mcox <- survcompare::survcox_train(df_train_x, params)
-  mcoxlasso <- glmnet::cv.glmnet(
-    x = as.matrix(df_train_x[, params]),
-    y = Surv(df_train_x$time, df_train_x$event),
-    family = "cox"
-  )
-  msrf<- survcompare::survsrf_train(df_train_x, params)
-  
-  pcox0 <- predict(mcox, df_test_x[params], type = "lp")
-  plasso0 <-
-    predict(mcoxlasso,as.matrix(df_test_x[params]),
-            lambda = lambda.min,type = "link")
-  psrf0 <- survcompare::survsrf_predict(msrf, df_test_x, fixed_time = 10)
-  
-  y_test = Surv(df_test_x$time, df_test_x$event)
-  c0_cox <- concordancefit(y = y_test, x = 1 - pcox0)$concordance
-  c0_lasso <- concordancefit(y = y_test, x = 1 - plasso0)$concordance
-  c0_srf <- concordancefit(y = y_test, x = 1- psrf0)$concordance
-  remove(mcox, mcoxlasso, msrf)
-  return(c(c0_cox, c0_lasso, c0_srf))
+
+#######################################################
+mechanisms<-c("MCAR", "MAR","MNAR")
+missing_p <- seq(0, 0.6, 0.15)
+#create missingness in any variable
+default_pattern_any = c(rep(0,length(params)))
+n <- 1:1
+default_pattern_1 = rbind(c(1,1,0,0,0,0,1,1,0,0),c(1,1,1,1,0,0,0,0,1,1))
+grid1<- expand.grid("n" = n, "p" = missing_p, "mech" = mechanisms)
+
+
+# Use parallel calculations 
+library(parallel)
+cl <- makeCluster(4)
+# Pass information and functions to the cluster environment 
+clusterEvalQ(cl, {library(survcompare)})
+clusterEvalQ(cl, {library(survival)})
+clusterEvalQ(cl, {library(caret)})
+clusterEvalQ(cl, {library(missForest)})
+clusterEvalQ(cl, {library(mice)})
+
+clusterExport(cl, c('impute_mean', 'impute_mean_test','impute_cc', 
+                    'impute_mice', 'impute_mice_test',
+                    'impute_missforest', 'impute_missforest_test', 
+                    'create_missing',
+                    'params', 'params_impute', 'diabetes', 
+                    'default_pattern_any', 
+                    'grid1' , 'df', 'one_fold_run', 'one_cv_run',
+                    'run_function', 'mv'), 
+              envir = .GlobalEnv)
+
+run_function <- function(X){
+  p = grid1[X, "p"]
+  mechi = as.character(grid1[X, "mech"])
+  trial1<-one_cv_run(df, params_impute, params, p, mechi)
+  return(trial1)
 }
 
-#  CC 
-cind_0<- getcindex(df_train_0, df_test_0) # 87 85 86
-cind_1<- getcindex(df_train_1, df_test_1) # 73 71 
-cind_2<- getcindex(df_train_2, df_test_2) # 72 71
-cind_3<- getcindex(df_train_3, df_test_3) # 70 72
-r<- rbind(cind_0, cind_1, cind_2, cind_3)
-names(r)<- c("CoxPH", "CoxLasso", "SRF")
+df<- survcompare::simulate_nonlinear(500)
+params <- c("age", "bmi", "hyp", "sex")
+params_impute <- c("age", "bmi", "hyp", "sex")
+# i=12
+# p = grid1[i, "p"]
+# mechi = as.character(grid1[i, "mech"])
+# trial1<- one_cv_run(df, params_impute, params, p, mechi)
 
+parLapply(cl, X = 1:dim(grid1)[1], fun = run_function)
+
+stopCluster(cl)
 
