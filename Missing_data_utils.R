@@ -215,17 +215,6 @@ one_cv_run <-
     #average over cv iterations 
   } 
 
-########################### Parallel CV ###################################
-library(mice)
-library(survival)
-
-# grid for simulations 
-mechanisms<-c("MCAR", "MAR", "MNAR") 
-missing_p <- seq(0, 0.6, 0.2)
-n <- 1:10 # trials for each combination of MCAR & p
-grid1<- expand.grid("n" = n, "p" = missing_p, "mech" = mechanisms)
-dim(grid1) 
-
 run_function <- function(X){
   p = grid1[X, "p"]
   mechi = as.character(grid1[X, "mech"])
@@ -237,17 +226,86 @@ run_function <- function(X){
   return(trial1)
 }
 
-# define the data df, params for prediction, params for imputations
-df<- survcompare::simulate_nonlinear(1000)
-params <- c("age", "bmi", "hyp", "sex")
-params_impute <- c("age", "bmi", "hyp", "sex")
-
 # # non-parallel way 
 # t1<- Sys.time()
 # myrun <- lapply(1:dim(grid1)[1], FUN = run_function)
 # t1<- Sys.time()-t1
 # print(t1) # 36 sec for 100 observations vs 18sec in parallel
 # myrun
+
+# post-run analysis 
+postanalysis <- function(
+    myrun, grid1, save= FALSE, 
+    mainDir = "~/Documents/GitHub/missing-data-in-healthcare/Results/",
+    subDir = "24052023"){
+  
+  library(dplyr)
+  library(tidyr)
+  library(ggplot2)
+  library(tm)
+  #Convert to a long table
+  myrun_table <- myrun[[1]]
+  for (i in (2:length(myrun))){
+    myrun_table<- rbind(myrun_table, myrun[[i]])
+  }
+  myrun_table$impute_name <- 
+    tm::removeNumbers(rownames(myrun_table))
+  myrun_table_longer<- 
+    myrun_table %>% 
+    pivot_longer(cols = c(CoxPH,SRF, CoxLasso), 
+                 names_to = "model",
+                 values_to = "C_index")
+  myrun_table_longer <- data.frame(myrun_table_lnger)
+  means <- 
+    data.frame(
+      myrun_table_longer %>% 
+        group_by(mech, impute_name,model, p) %>% 
+        summarize(Cindex = mean(C_index), sd = sd(C_index), 
+                  min = min(C_index), max = max(C_index)))
+  plt1<- means %>% 
+    ggplot(aes(x=p, y = Cindex, col = impute_name)) +
+    facet_grid(cols = vars(model), rows = vars(mech)) +
+    geom_line() # + 
+  geom_ribbon(aes(ymin = min, ymax = max),  
+              alpha = 0.3, fill="grey", color="grey")
+  
+  #Save the long table, means and plot
+  if (save) {
+    ifelse(!dir.exists(file.path(mainDir, subDir)), 
+           dir.create(file.path(mainDir, subDir)), FALSE)
+    write.csv(
+      myrun_table,
+      paste(mainDir, subDir, "Long_results.csv", sep = "/"))
+    write.csv(
+      means,
+      paste(mainDir, subDir,"Means_results.csv", sep = "/"))
+    ggsave(filename =
+             paste(mainDir, subDir, "Plot1.pdf",sep = "/"),
+           plot = plt1)
+  }
+  output <- list()
+  output$means <- means
+  output$myrun_table_longer <- myrun_table_longer
+  output$plt <- plt1
+  return(output)
+}
+
+
+########################### Parallel CV ###################################
+library(mice)
+library(survival)
+
+# grid for simulations 
+mechanisms<-c("MCAR", "MAR", "MNAR") 
+missing_p <- seq(0, 0.6, 0.1)
+n <- 1:10 # trials for each combination of MCAR & p
+grid1<- expand.grid("n" = n, "p" = missing_p, "mech" = mechanisms)
+dim(grid1) 
+
+# define the data df, params for prediction, params for imputations
+df<- survcompare::simulate_nonlinear(1000)
+params <- c("age", "bmi", "hyp", "sex")
+params_impute <- c("age", "bmi", "hyp", "sex")
 
 # Use parallel calculations 
 library(parallel)
@@ -285,47 +343,6 @@ t1<- Sys.time()-t1
 print(t1) #49 min for n=1000 and grid size 120 nonlinear(25sec/cv)
 stopCluster(cl)
 
-#Convert to a long table
-myrun_table <- myrun[[1]]
-for (i in (2:length(myrun))){
-  myrun_table<- rbind(myrun_table, myrun[[i]])
-}
-#Save the long table
-write.csv( myrun_table, 
-  "~/Documents/GitHub/missing-data-in-healthcare/Results/NonLinear_1000_runs.csv")
-
-#install.packages("tm")
-library(dplyr)
-library(tidyr)
-library(ggplot2)
-rownames(myrun_table)
-myrun_table$impute_name <- tm::removeNumbers(rownames(myrun_table))
-myrun_table_lnger<- 
-  myrun_table %>% 
-  pivot_longer(cols = c(CoxPH,SRF, CoxLasso), names_to = "model",values_to = "C_index")
-myrun_table_lnger <- data.frame(myrun_table_lnger)
-
-means <- 
-  data.frame(
-    myrun_table_lnger %>% 
-    group_by(mech, impute_name,model, p) %>% 
-    summarize(Cindex = mean(C_index), sd = sd(C_index), 
-            min = min(C_index), max = max(C_index)))
-write.csv(
-  means, 
-  "~/Documents/GitHub/missing-data-in-healthcare/Results/NonLinear_1000_runs_means.csv"
-)
-head(means)
-plt1<- means %>% 
-  ggplot(aes(x=p, y = Cindex, col = impute_name)) +
-  facet_grid(cols = vars(model), rows = vars(mech)) +
-  geom_line() # + 
-  geom_ribbon(aes(ymin = min, ymax = max),  
-              alpha = 0.3, fill="grey", color="grey")
-plt1
-ggsave(filename =  
-  "~/Documents/GitHub/missing-data-in-healthcare/Results/NonLinear_1000_runs_plt1.pdf",
-  plot = plt1
-)
-
-
+postanalysis(myrun, grid1, save = TRUE,
+             mainDir = "~/Documents/GitHub/missing-data-in-healthcare/Results/",
+             subDir = "2024_05_25")
