@@ -1,7 +1,4 @@
 
-# missing data percentage by column
-mv <- function(df){round(apply(apply(df, 2, is.na), 2, sum)/dim(df)[1],4)}
-
 ##########################################################################
 
 impute_mean<- function(df, params, randomseed = NULL){
@@ -60,7 +57,6 @@ impute_mice <- function(df, params, randomseed = NULL) {
   return(output)
 }
 
-
 impute_mice_test <- function(dftrain, dftest, params, randomseed = NULL) {
   if (is.null(randomseed)) {randomseed = sample(1:1e9,1)}
   df_all <- data.frame(cbind(dftest[params], dftrain[params]))
@@ -93,14 +89,18 @@ impute_missforest<- function(df, params, randomseed = NULL, correctwealth= TRUE)
   return(output)
 }
 
-impute_missforest_test<- function(dftrain, dftest, params, randomseed = NULL){
+impute_missforest_test<- 
+  function(dftrain, dftest, params, randomseed = NULL){
   # https://rpubs.com/lmorgan95/MissForest idea from here 
   # Impute the training data using missForest(): train_X →imp_train_X
-  # Build a random forest rf predicting creditability (the response) on imp_train_X
+  # Build a random forest rf predicting creditability 
+  # (the response) on imp_train_X
   # Combine imp_train_X & test_X →
   # train_test_X
-  # Run missForest() to on train_test_X, then extract imp_test_X (the test observations only)
-  # Use rf to get the probability predictions on the test data (using the imputed data, imp_test_X)
+  # Run missForest() to on train_test_X, then extract imp_test_X 
+  # (the test observations only)
+  # Use rf to get the probability predictions on the test data 
+  # (using the imputed data, imp_test_X)
   df_all <- data.frame(cbind(dftest[params], dftrain[params]))
   if (is.null(randomseed)) {randomseed = sample(1:1e9,1)}
   {set.seed(randomseed);  mf<- missForest::missForest(df_all)}
@@ -109,56 +109,10 @@ impute_missforest_test<- function(dftrain, dftest, params, randomseed = NULL){
   return(output)
 }
 
-
 ############################
+# missing data percentage by column
+mv <- function(df){round(apply(apply(df, 2, is.na), 2, sum)/dim(df)[1],4)}
 
-# diabetes<-read.csv('diabetes_data_for_msc_2024.csv')
-# diabetes <- diabetes[names(diabetes)!="X"]
-# names(diabetes)
-# summary(diabetes)
-# dim(diabetes) #5957 23 
-# 
-# table(diabetes$event) # 456 cases
-# sum(is.na(diabetes)) # 3901
-# sum(diabetes$event==1)  
-# 
-# #binary for high and low wealth
-# diabetes$wealth_high<- ifelse(diabetes$baseline_wealth=="high",1,0)
-# diabetes$wealth_low<- ifelse(diabetes$baseline_wealth=="low",1,0)
-# 
-# #define params
-# params_impute <- c("baseline_age", "sex", "baseline_bmi",
-#             "baseline_hyp", "baseline_cvd", 
-#             "baseline_exercise" , "Education", 
-#             "baseline_B_dep",  "baseline_hba1c",     
-#             "wealth_low",  "wealth_high", "wealth_med")
-# 
-# # diabetes for analyses 
-# diabetes1<- impute_cc(diabetes, params)$df
-
-# diabetes1$wealth_high <- as.factor(diabetes$wealth_high)
-# diabetes1$wealth_low <- as.factor(diabetes$wealth_low)
-# diabetes1$wealth_med <- as.factor(diabetes$wealth_med)
-# write.csv(diabetes1, "diabetes_data_for_analyses.csv")
-
-# load the data
-diabetes<-read.csv('diabetes_data_for_analyses.csv')
-
-# 0-1-2 for low, med. high wealth
-diabetes$baseline_wealth_n <- ifelse(diabetes$baseline_wealth == "low", 0, 
-                                     ifelse(diabetes$baseline_wealth == "med", 1,
-                                            2))
-  
-params <- c("baseline_age", "sex", "baseline_bmi",
-            "baseline_hyp", "baseline_cvd", 
-            "baseline_exercise" , "Education", 
-            "baseline_B_dep",  "baseline_hba1c",     
-            "wealth_low",  "wealth_high")
-params_impute <- c("baseline_age", "sex", "baseline_bmi",
-                                "baseline_hyp", "baseline_cvd", 
-                                "baseline_exercise" , "Education", 
-                                "baseline_B_dep",  "baseline_hba1c",  
-                                 "baseline_wealth_n")                 
 create_missing <-
   function(df,
            params,
@@ -178,48 +132,11 @@ create_missing <-
     return(df)
 }
 
-#################  AMPUTE  ################
+#################  Cross-Validation with imputation ################
 
-#install.packages("mice") 
-library(mice)
-library(survival)
-
-mechanisms<-c('MCAR', 'MAR','MNAR')
-missing_p <- seq(0, 0.6, 0.1)
-
-#create missingness in any variable
-default_pattern_any = c(rep(0,10))
-
-# missing in the last 5 variables only
-default_pattern_1 = c(rep(1,5), rep(0,5))
-
-# overall number of variables
-nall = dim(df_train_cv[params])[1]*length(params)
-
-#################################################
-
-# CREATE DATA WITH MISSING DATA
-d1 <- create_missing(diabetes, params_impute, "MNAR", 0.3, 2024)
-
-d1_mice<- impute_mice(d1,params_impute,randomseed = 2024)$df
-d1_missForest<- impute_missforest(d1,params_impute,randomseed = 2022)$df
-
-table(diabetes$baseline_wealth_n, d1_missForest$baseline_wealth_n)
-#            0    1    2
-# low /0  1116  499    0
-# med /1     0 1779    0
-# high/2     0  604 1349
-
-table(diabetes$baseline_wealth_n, d1_mice$baseline_wealth_n)
-#     0    1    2
-# 0 1274  169  172
-# 1  139 1442  198
-# 2  182  206 1565
-
-cv_number = 3 
-cv_folds = caret::createFolds(d1$event, k = cv_number, list = FALSE)
-
-one_fold_run<- function(k, cv_folds, d1, d1_mice,d1_missForest){ 
+one_fold_run<- 
+  function(k, cv_folds, d1, d1_mice,d1_missForest){
+  
     df_train_cv = d1[cv_folds != k,]
     df_test_cv  = d1[cv_folds == k,]
     
@@ -238,7 +155,6 @@ one_fold_run<- function(k, cv_folds, d1, d1_mice,d1_missForest){
     df_test_3 <-  d1_missForest[cv_folds==k, ]
     
     getcindex <- function(df_train_x, df_test_x) {
-      
       mcox <- survcompare::survcox_train(df_train_x, params)
       mcoxlasso <- glmnet::cv.glmnet(
         x = as.matrix(df_train_x[, params]),
@@ -246,20 +162,16 @@ one_fold_run<- function(k, cv_folds, d1, d1_mice,d1_missForest){
         family = "cox"
       )
       msrf<- survcompare::survsrf_train(df_train_x, params)
-      
       pcox0 <- predict(mcox, df_test_x[params], type = "lp")
       plasso0 <-
         predict(mcoxlasso,as.matrix(df_test_x[params]),
                 lambda = lambda.min,type = "link")
       psrf0 <- survcompare::survsrf_predict(msrf, df_test_x, fixed_time = 10)
-      
       y_test = Surv(df_test_x$time, df_test_x$event)
       c0_cox <- concordancefit(y = y_test, x = 1 - pcox0)$concordance
-      
       c0_lasso <- concordancefit(y = y_test, x = 1 - plasso0)$concordance
       c0_srf <- concordancefit(y = y_test, x = 1- psrf0)$concordance
       remove(mcox, mcoxlasso, msrf)
-      
       return(c(c0_cox, c0_lasso, c0_srf))
     }
     #  CC 
@@ -269,55 +181,73 @@ one_fold_run<- function(k, cv_folds, d1, d1_mice,d1_missForest){
     cind_3<- getcindex(df_train_3, df_test_3) # 70 72
     r<- rbind(cind_0, cind_1, cind_2, cind_3)
     colnames(r)<- c("CoxPH", "CoxLasso", "SRF")
+    rownames(r)<- c("CC", "Mean", "MICE", "mForest")
     return(r)
 } 
 
 one_cv_run <-
-  function(df, 
+  function(d1, 
            params_impute,
            params,
            p,
            mechi,
+           n,
            pattern = NULL,
            cv_number=3) {
-    
-    if (is.null(pattern)){ pattern = rep(0, length(params_impute))}
-
-    d1 <- create_missing(df = df, params = params_impute,
-        mech = mechi,prop = p, pattern = pattern)
-    print(mv(d1))
     d1_mice <- impute_mice(d1, params_impute)$df
     d1_missForest <-
       impute_missforest(d1, params_impute, correctwealth = FALSE)$df
-    
     cv_folds = caret::createFolds(d1$event, k = cv_number, list = FALSE)
-    
     results_cv <- list()
-
     for (j in (1:cv_number)) {
       results_cv[[j]] <- one_fold_run(k=j, cv_folds, d1, d1_mice, d1_missForest)
     }
-    
     results_cv_means <-  results_cv[[1]]/cv_number
     for (j in (2:cv_number)) {
       results_cv_means <- results_cv_means + results_cv[[j]]/cv_number
     }  
-    
+    results_cv_means<- data.frame(results_cv_means)
+    results_cv_means["p"] <- p
+    results_cv_means["mech"] <- as.character(mechi)
+    results_cv_means["n"] <- n
     remove(d1, d1_mice, d1_missForest)
     return(results_cv_means)
     #average over cv iterations 
   } 
 
+########################### Parallel CV ###################################
+library(mice)
+library(survival)
 
-#######################################################
-mechanisms<-c("MCAR", "MAR","MNAR")
-missing_p <- seq(0, 0.6, 0.15)
-#create missingness in any variable
-default_pattern_any = c(rep(0,length(params)))
-n <- 1:1
-default_pattern_1 = rbind(c(1,1,0,0,0,0,1,1,0,0),c(1,1,1,1,0,0,0,0,1,1))
+# grid for simulations 
+mechanisms<-c("MCAR", "MAR", "MNAR") 
+missing_p <- seq(0, 0.6, 0.2)
+n <- 1:10 # trials for each combination of MCAR & p
 grid1<- expand.grid("n" = n, "p" = missing_p, "mech" = mechanisms)
+dim(grid1) 
 
+run_function <- function(X){
+  p = grid1[X, "p"]
+  mechi = as.character(grid1[X, "mech"])
+  n = grid1[X, "n"]
+  patterni = 1-diag(length(params_impute))
+  d1 <- create_missing(df = df, params = params_impute,
+                       mech = mechi,prop = p, pattern = patterni)
+  trial1<-one_cv_run(d1, params_impute, params, p, mechi,n = n)
+  return(trial1)
+}
+
+# define the data df, params for prediction, params for imputations
+df<- survcompare::simulate_nonlinear(1000)
+params <- c("age", "bmi", "hyp", "sex")
+params_impute <- c("age", "bmi", "hyp", "sex")
+
+# # non-parallel way 
+# t1<- Sys.time()
+# myrun <- lapply(1:dim(grid1)[1], FUN = run_function)
+# t1<- Sys.time()-t1
+# print(t1) # 36 sec for 100 observations vs 18sec in parallel
+# myrun
 
 # Use parallel calculations 
 library(parallel)
@@ -328,33 +258,74 @@ clusterEvalQ(cl, {library(survival)})
 clusterEvalQ(cl, {library(caret)})
 clusterEvalQ(cl, {library(missForest)})
 clusterEvalQ(cl, {library(mice)})
-
-clusterExport(cl, c('impute_mean', 'impute_mean_test','impute_cc', 
-                    'impute_mice', 'impute_mice_test',
-                    'impute_missforest', 'impute_missforest_test', 
+clusterExport(cl, c('impute_mean', 
+                    'impute_mean_test',
+                    'impute_cc',
+                    'impute_mice', 
+                    'impute_mice_test',
+                    'impute_missforest', 
+                    'impute_missforest_test', 
                     'create_missing',
-                    'params', 'params_impute', 'diabetes', 
+                    'params', 
+                    'params_impute', 
+                    'diabetes', 
                     'default_pattern_any', 
-                    'grid1' , 'df', 'one_fold_run', 'one_cv_run',
-                    'run_function', 'mv'), 
+                    'grid1',
+                    'df', 
+                    'one_fold_run', 
+                    'one_cv_run',
+                    'run_function',
+                    'mv'), 
               envir = .GlobalEnv)
 
-run_function <- function(X){
-  p = grid1[X, "p"]
-  mechi = as.character(grid1[X, "mech"])
-  trial1<-one_cv_run(df, params_impute, params, p, mechi)
-  return(trial1)
-}
-
-df<- survcompare::simulate_nonlinear(500)
-params <- c("age", "bmi", "hyp", "sex")
-params_impute <- c("age", "bmi", "hyp", "sex")
-# i=12
-# p = grid1[i, "p"]
-# mechi = as.character(grid1[i, "mech"])
-# trial1<- one_cv_run(df, params_impute, params, p, mechi)
-
-parLapply(cl, X = 1:dim(grid1)[1], fun = run_function)
-
+# RUN
+t1<- Sys.time()
+myrun <- parLapply(cl, X = 1:dim(grid1)[1], fun = run_function)
+t1<- Sys.time()-t1
+print(t1) #49 min for n=1000 and grid size 120 nonlinear(25sec/cv)
 stopCluster(cl)
+
+#Convert to a long table
+myrun_table <- myrun[[1]]
+for (i in (2:length(myrun))){
+  myrun_table<- rbind(myrun_table, myrun[[i]])
+}
+#Save the long table
+write.csv( myrun_table, 
+  "~/Documents/GitHub/missing-data-in-healthcare/Results/NonLinear_1000_runs.csv")
+
+#install.packages("tm")
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+rownames(myrun_table)
+myrun_table$impute_name <- tm::removeNumbers(rownames(myrun_table))
+myrun_table_lnger<- 
+  myrun_table %>% 
+  pivot_longer(cols = c(CoxPH,SRF, CoxLasso), names_to = "model",values_to = "C_index")
+myrun_table_lnger <- data.frame(myrun_table_lnger)
+
+means <- 
+  data.frame(
+    myrun_table_lnger %>% 
+    group_by(mech, impute_name,model, p) %>% 
+    summarize(Cindex = mean(C_index), sd = sd(C_index), 
+            min = min(C_index), max = max(C_index)))
+write.csv(
+  means, 
+  "~/Documents/GitHub/missing-data-in-healthcare/Results/NonLinear_1000_runs_means.csv"
+)
+head(means)
+plt1<- means %>% 
+  ggplot(aes(x=p, y = Cindex, col = impute_name)) +
+  facet_grid(cols = vars(model), rows = vars(mech)) +
+  geom_line() # + 
+  geom_ribbon(aes(ymin = min, ymax = max),  
+              alpha = 0.3, fill="grey", color="grey")
+plt1
+ggsave(filename =  
+  "~/Documents/GitHub/missing-data-in-healthcare/Results/NonLinear_1000_runs_plt1.pdf",
+  plot = plt1
+)
+
 
