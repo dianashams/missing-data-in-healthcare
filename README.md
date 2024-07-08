@@ -20,8 +20,7 @@ Given that missing data is one of the key issues in clinical research, in this p
   
 ### Method
 
-* The missing data will be created by using the function 'ampute', from a widely used imputation package ['mice'](https://rianneschouten.github.io/mice_ampute/vignette/ampute.html).
-* The missing data will be simulated with various
+* Missing values will be created using customized functions to allow simulating different 
   * missingness mechanisms (MAR, MCAR, MNAR),
   * percentage of missing data (0% - 50%).
 
@@ -52,6 +51,6 @@ Given that missing data is one of the key issues in clinical research, in this p
      * Condordance index (Harrel's c-index for survival outcomes);
      * Time-dependent AUC-ROC (using 'PROC' R package);
      * Calibration slope (how well the predicted survival probabilities correspond to the obseerved survival rates);
-     * Time-dependent Brier score (mean squared error for binary outcome of survived/ not survived), Bernoulli likelihood (mean absolute binary error).
+     * (TBD)Time-dependent Brier score (mean squared error for binary outcome of survived/ not survived), Bernoulli likelihood (mean absolute binary error).
 
   
