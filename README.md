@@ -1,13 +1,14 @@
 # Prediction of time-to-event outcomes in the presence of missing data. 
+
+## Review of the existing methods of handling missing data
+
+Current version can be found here [Missing Data Handling. Report for NIHR Maudsley Biomedical Research Centre](https://github.com/dianashams/missing-data-in-healthcare/blob/gh-pages/Handling%20missing%20data%20for%20clinical%20prediction%20models.pdf).
+
 ## Which combinations of imputation and prediction algorithms work best?  
 
 ##### Keywords: prediction modelling, missing data imputation, survival analysis, machine learning
 
 The project is a comparison study investigating the performance of the Cox model and Survival Random Forest while using different imputation methods (e.g. MICE/ missForest / single or multiple imputations), in R or in Python. It is an MSc project within the [MSc “Statistical Modelling and Health Informatics”](https://www.kcl.ac.uk/study/postgraduate-taught/courses/applied-statistical-modelling-health-informatics) at King's College London, 2024.
-
-### Review of the existing methods of handling missing data
-
-Current version can be found here [Missing Data Handling. Report for NIHR Maudsley Biomedical Research Centre](https://github.com/dianashams/missing-data-in-healthcare/blob/gh-pages/Handling%20missing%20data%20for%20clinical%20prediction%20models.pdf).
 
 ### PROJECT AIMS 
 Review existing missing data imputation techniques, and investigate which techniques result in a better performance and higher stability of the survival methods (Cox Proportionate Hazard Model, Survival Random Forest and/or XGBoost) while predicting mental health outcomes.  
