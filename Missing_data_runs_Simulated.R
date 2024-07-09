@@ -1,15 +1,24 @@
 
 # grid for simulations 
-mechanisms<-c("MCAR", "MAR", "MNAR") 
-missing_p <- seq(0, 0.6, 0.15)
-n <- 1:5 # trials for each combination of MCAR & p
+mechanisms<-c("MAR") #c("MCAR", "MAR", "MNAR") 
+missing_p <- c(0.2,0.5,0.8 ) # seq(0.1, 0.7, 0.2)
+n <- 1 # trials for each combination of MCAR & p
 grid1<- expand.grid("n" = n, "p" = missing_p, "mech" = mechanisms)
 dim(grid1) 
-
+grid1
 # define the data df, params for prediction, params for imputations
 df<- survcompare::simulate_nonlinear(1000)
 params <- c("age", "bmi", "hyp", "sex")
-params_impute <- c("age", "bmi", "hyp", "sex")
+cols_to_miss <- c("age", "hyp")
+params_impute<- params
+dep_cols <- c("bmi", "sex")
+
+
+t1<- Sys.time()
+myrun_0 <- apply(cl, X = 1:dim(grid1)[1], FUN = run_function)
+t1<- Sys.time()-t1
+
+
 
 # Use parallel calculations 
 library(parallel)
@@ -30,14 +39,14 @@ clusterExport(cl, c('impute_mean',
                     'create_missing',
                     'params', 
                     'params_impute', 
-                    'diabetes', 
-                    'default_pattern_any', 
+                    'cols_to_miss',
                     'grid1',
                     'df', 
                     'one_fold_run', 
                     'one_cv_run',
                     'run_function',
-                    'mv'), 
+                    'mv',
+                    'dep_cols'), 
               envir = .GlobalEnv)
 
 # RUN
@@ -48,5 +57,5 @@ print(t1) #49 min for n=1000 and grid size 120 nonlinear(25sec/cv)
 stopCluster(cl)
 
 postanalysis(myrun, grid1, save = TRUE,
-             mainDir = "~/Documents/GitHub/missing-data-in-healthcare/Results/",
-             subDir = "2024_05_25")
+             mainDir = "C:/Users/dinab/Desktop/PhD Projects/Ensemble methods/GitHub_App/missing-data-in-healthcare/Results",
+             subDir = "2024_06_28")
