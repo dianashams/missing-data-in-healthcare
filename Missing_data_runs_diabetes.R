@@ -71,8 +71,8 @@ dep_cols <- c("baseline_age", "sex", "Education")
 
 # grid for tests
 mechanisms<-c("MCAR", "MAR", "MNAR")
-missing_p <- c(0.2,0.5,0.8 ) # seq(0.1, 0.7, 0.2)
-n <- 1:3 # trials for each combination of MCAR & p
+missing_p <- c(0, 0.2, 0.4, 0.6, 0.8) # seq(0.1, 0.7, 0.2)
+n <- 1:4 # trials for each combination of MCAR & p
 grid1<- expand.grid("n" = n, "p" = missing_p, "mech" = mechanisms)
 dim(grid1)
 source("Missing_data_utils.R")
@@ -167,6 +167,6 @@ stopCluster(cl)
 
 postanalysis(myrun_diabetes, grid1, save = TRUE,
              mainDir = "C:/Users/dinab/Desktop/PhD Projects/Ensemble methods/GitHub_App/missing-data-in-healthcare/Results",
-             subDir = "2024_07_08_Diabetes")
+             subDir = "2024_07_08_Diabetes_ext")
 
 
