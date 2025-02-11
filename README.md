@@ -9,7 +9,8 @@ Current version can be found here [Missing Data Handling. Report for NIHR Maudsl
 ##### Keywords: prediction modelling, missing data imputation, survival analysis, machine learning
 
 The project is a comparison study investigating the performance of the Cox model and Survival Random Forest while using different imputation methods (e.g. MICE/ missForest / single or multiple imputations), in R or in Python. It is an MSc project within the [MSc “Statistical Modelling and Health Informatics”](https://www.kcl.ac.uk/study/postgraduate-taught/courses/applied-statistical-modelling-health-informatics) at King's College London, 2024.
-Authors:  Diana Shamsutdinova, PhD [profile link](https://www.kcl.ac.uk/people/diana-shamsutdinova), Mr Harper Clees-Baron [profile link](https://kclpure.kcl.ac.uk/portal/en/persons/harper.a.clees-baron)
+
+#### Authors:  Diana Shamsutdinova, PhD [profile link](https://www.kcl.ac.uk/people/diana-shamsutdinova), Mr Harper Clees-Baron [profile link](https://kclpure.kcl.ac.uk/portal/en/persons/harper.a.clees-baron)
 
 ### PROJECT AIMS 
 Review existing missing data imputation techniques, and investigate which techniques result in a better performance and higher stability of the survival methods (Cox Proportionate Hazard Model, Survival Random Forest and/or XGBoost) while predicting mental health outcomes.  
